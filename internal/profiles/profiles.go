@@ -2,6 +2,7 @@ package profiles
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path"
 	"regexp"
@@ -18,7 +19,7 @@ var (
 	TestProfileHeader = regexp.MustCompile(`^\[[A-Za-z0-9_-]+\]$`) // TODO: check against actual alias rules
 )
 
-type Profiles map[string]struct{}
+type Profiles map[string]string
 
 func (p Profiles) Sort() (profiles []string) {
 	for key := range p {
@@ -30,7 +31,15 @@ func (p Profiles) Sort() (profiles []string) {
 }
 
 func (p Profiles) Add(key string) {
-	p[key] = struct{}{}
+	p[key] = ""
+}
+
+func (p Profiles) AddAccountNumber(key string, value string) error {
+	if !p.Exists(key) {
+		return errors.New("profile does not exist")
+	}
+	p[key] = value
+	return nil
 }
 
 func (p Profiles) Delete(key string) {
@@ -82,7 +91,7 @@ func SelectSourceProfile(haystack Profiles, omitProfiles Profiles) (profile stri
 	}
 
 	prompt := promptui.Select{
-		Label: "Source Profile",
+		Label: "Select Source Profile",
 		Items: displayProfiles.Sort(),
 	}
 
@@ -101,7 +110,7 @@ func SelectTargetProfile(haystack Profiles, omitProfiles Profiles) (profile stri
 	}
 
 	prompt := promptui.Select{
-		Label: "Target Profile",
+		Label: "Select Target Profile",
 		Items: displayProfiles.Sort(),
 	}
 

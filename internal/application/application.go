@@ -12,30 +12,52 @@ type Application interface {
 }
 
 type app struct {
-	Clients clients.Clients
+	Profiles     profiles.Profiles
+	OmitProfiles profiles.Profiles
+	Clients      clients.Clients
 }
 
 func (a *app) Run(args []string) (err error) {
-	omitProfiles := profiles.New()
-	p, err := profiles.ReadProfiles()
+	a.OmitProfiles = profiles.New()
+
+	if a.Profiles, err = profiles.ReadProfiles(); err != nil {
+		return err
+	}
+
+	sourceProfile, err := profiles.SelectSourceProfile(a.Profiles, a.OmitProfiles)
 	if err != nil {
 		return err
 	}
 
-	sourceProfile, err := profiles.SelectSourceProfile(p, omitProfiles)
+	a.OmitProfiles.Add(sourceProfile)
+
+	targetProfile, err := profiles.SelectTargetProfile(a.Profiles, a.OmitProfiles)
 	if err != nil {
 		return err
 	}
 
-	omitProfiles[sourceProfile] = struct{}{}
+	printSelectedProfiles(sourceProfile, targetProfile)
 
-	targetProfile, err := profiles.SelectTargetProfile(p, omitProfiles)
+	fmt.Print("Initializing Clients...")
+	client, err := clients.New(sourceProfile, targetProfile, a.Profiles)
+	if err != nil {
+		fmt.Println("ERROR")
+		return err
+	}
+	fmt.Println("OK")
+	fmt.Println()
+
+	//fmt.Println("Updated Profiles:")
+	//fmt.Printf("    Source: %s - %s\n", a.Profiles[sourceProfile], sourceProfile)
+	//fmt.Printf("    Target: %s - %s\n", a.Profiles[targetProfile], targetProfile)
+	//fmt.Println()
+
+	fmt.Println("Fetching Domains...")
+	out, err := client.ListSourceDomains()
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("Source Profile: %s\n", sourceProfile)
-	fmt.Printf("Target Profile: %s\n", targetProfile)
+	fmt.Println(out)
 
 	return
 }
@@ -44,4 +66,11 @@ func New() Application {
 	a := &app{}
 
 	return a
+}
+
+func printSelectedProfiles(source, target string) {
+	fmt.Println("Selected Profiles:")
+	fmt.Printf("    Source: %s\n", source)
+	fmt.Printf("    Target: %s\n", target)
+	fmt.Println()
 }
