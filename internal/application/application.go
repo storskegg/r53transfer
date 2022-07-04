@@ -5,7 +5,6 @@ import (
 
 	"github.com/storskegg/r53transfer/internal/clients"
 	"github.com/storskegg/r53transfer/internal/profiles"
-	"github.com/urfave/cli/v2"
 )
 
 type Application interface {
@@ -13,7 +12,6 @@ type Application interface {
 }
 
 type app struct {
-	App     cli.App
 	Clients clients.Clients
 }
 
@@ -44,7 +42,6 @@ func (a *app) Run(args []string) (err error) {
 
 func New() Application {
 	a := &app{}
-	a.App = cli.App{}
 
 	return a
 }

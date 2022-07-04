@@ -47,14 +47,14 @@ func New() Profiles {
 }
 
 func ReadProfiles() (profiles Profiles, err error) {
-	var userDir string
+	var credPath string
 	var credFile *os.File
 
-	if userDir, err = os.UserHomeDir(); err != nil {
+	if credPath, err = CredentialsPath(); err != nil {
 		return nil, err
 	}
 
-	if credFile, err = os.Open(path.Join(append([]string{userDir}, AwsCredentialsPath...)...)); err != nil {
+	if credFile, err = os.Open(credPath); err != nil {
 		return nil, err
 	}
 	defer credFile.Close()
@@ -108,4 +108,13 @@ func SelectTargetProfile(haystack Profiles, omitProfiles Profiles) (profile stri
 	_, profile, err = prompt.Run()
 
 	return
+}
+
+func CredentialsPath() (credPath string, err error) {
+	var userDir string
+	if userDir, err = os.UserHomeDir(); err != nil {
+		return "", err
+	}
+
+	return path.Join(append([]string{userDir}, AwsCredentialsPath...)...), nil
 }
