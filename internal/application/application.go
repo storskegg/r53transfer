@@ -3,8 +3,11 @@ package application
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/route53domains"
 	"github.com/storskegg/r53transfer/internal/clients"
 	"github.com/storskegg/r53transfer/internal/profiles"
+	"github.com/storskegg/r53transfer/internal/transfers"
 )
 
 type Application interface {
@@ -12,9 +15,10 @@ type Application interface {
 }
 
 type app struct {
-	Profiles     profiles.Profiles
-	OmitProfiles profiles.Profiles
-	Clients      clients.Clients
+	Profiles         profiles.Profiles
+	OmitProfiles     profiles.Profiles
+	Clients          clients.Clients
+	Domains2Transfer []transfers.Transfer
 }
 
 func (a *app) Run(args []string) (err error) {
@@ -36,6 +40,9 @@ func (a *app) Run(args []string) (err error) {
 		return err
 	}
 
+	// The profiles are valued with empty strings, at this point, and will be backfilled as account numbers as clients
+	// are instantiated.
+
 	printSelectedProfiles(sourceProfile, targetProfile)
 
 	fmt.Print("Initializing Clients...")
@@ -47,17 +54,49 @@ func (a *app) Run(args []string) (err error) {
 	fmt.Println("OK")
 	fmt.Println()
 
-	//fmt.Println("Updated Profiles:")
-	//fmt.Printf("    Source: %s - %s\n", a.Profiles[sourceProfile], sourceProfile)
-	//fmt.Printf("    Target: %s - %s\n", a.Profiles[targetProfile], targetProfile)
-	//fmt.Println()
+	fmt.Println("Updated Profiles:")
+	fmt.Printf("    Source: %s - %s\n", a.Profiles[sourceProfile], sourceProfile)
+	fmt.Printf("    Target: %s - %s\n", a.Profiles[targetProfile], targetProfile)
+	fmt.Println()
 
 	fmt.Println("Fetching Domains...")
-	out, err := client.ListSourceDomains()
+	listedDomains, err := client.ListSourceDomains()
 	if err != nil {
 		return err
 	}
-	fmt.Println(out)
+
+	for _, ds := range listedDomains.Domains {
+		fmt.Println("    ", *ds.DomainName)
+		a.Domains2Transfer = append(a.Domains2Transfer, transfers.Transfer{
+			TransferInput: &route53domains.TransferDomainToAnotherAwsAccountInput{
+				DomainName: ds.DomainName,
+				AccountId:  aws.String(a.Profiles[sourceProfile]),
+			},
+		})
+	}
+
+	// Transfer the domains
+	var transferError error
+	for _, d := range a.Domains2Transfer {
+		if d.TransferResponse, transferError = a.Clients.Source.TransferDomainToAnotherAwsAccount(d.TransferInput); transferError != nil {
+			fmt.Println(err)
+			continue
+		}
+		d.GenerateAcceptance()
+	}
+
+	// ListOperations - Source
+	sourceOperations, operationsError := a.Clients.Source.ListOperations(&route53domains.ListOperationsInput{})
+	if operationsError != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("Source Operations:\n", sourceOperations)
+
+	targetOperations, operationsError := a.Clients.Target.ListOperations(&route53domains.ListOperationsInput{})
+	if operationsError != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("Target Operations:\n", targetOperations)
 
 	return
 }
